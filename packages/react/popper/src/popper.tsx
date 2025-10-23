@@ -153,15 +153,6 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
 
     const context = usePopperContext(CONTENT_NAME, __scopePopper);
 
-    // const [capturedBoundingClientReactOfReferenceWhenLastOpened, setCapturedBoundingClientReactOfReferenceWhenLastOpened] = useState<DOMRect | null>(null);
-    // const capturedBoundingClientReactOfReferenceWhenLastOpenedRef = React.useRef(capturedBoundingClientReactOfReferenceWhenLastOpened);
-    // capturedBoundingClientReactOfReferenceWhenLastOpenedRef.current = capturedBoundingClientReactOfReferenceWhenLastOpened;
-    //
-    // const virtualReference = useMemo(() => {
-    //   if (capturedBoundingClientReactOfReferenceWhenLastOpened === null) return null;
-    //   return { getBoundingClientRect: () => capturedBoundingClientReactOfReferenceWhenLastOpened };
-    // }, [capturedBoundingClientReactOfReferenceWhenLastOpened]);
-
     const [content, setContent] = React.useState<HTMLDivElement | null>(null);
     const composedRefs = useComposedRefs(forwardedRef, (node) => setContent(node));
 
@@ -193,17 +184,6 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
       placement: desiredPlacement,
       whileElementsMounted: useCallback<Exclude<UseFloatingOptions['whileElementsMounted'], undefined>>(
         (...args) => {
-          // if (updatePositionStrategy === 'freezeReference') {
-          //   if (capturedBoundingClientReactOfReferenceWhenLastOpenedRef.current === null) {
-          //     return () => {};
-          //   } else {
-          //     return () => {
-          //       setTimeout(() => {
-          //         setCapturedBoundingClientReactOfReferenceWhenLastOpened(null);
-          //       }, 500); // TODO replace hacky timeout with a better solution - would have to know when the popper is fully closed
-          //     };
-          //   }
-          // }
           const cleanup = autoUpdate(...args, {
             animationFrame: updatePositionStrategy === 'always',
           });
@@ -259,6 +239,7 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
 
         handlePlaced?.();
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPositioned, handlePlaced, updatePositionStrategy, content, context.anchor]);
 
     const arrowX = middlewareData.arrow?.x;
