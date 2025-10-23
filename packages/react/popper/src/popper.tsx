@@ -22,7 +22,7 @@ import { useSize } from '@radix-ui/react-use-size';
 import type { Placement, Middleware } from '@floating-ui/react-dom';
 import type { Scope } from '@radix-ui/react-context';
 import type { Measurable } from '@radix-ui/rect';
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 const SIDE_OPTIONS = ['top', 'right', 'bottom', 'left'] as const;
 const ALIGN_OPTIONS = ['start', 'center', 'end'] as const;
@@ -128,7 +128,7 @@ interface PopperContentProps extends PrimitiveDivProps {
   collisionPadding?: number | Partial<Record<Side, number>>;
   sticky?: 'partial' | 'always';
   hideWhenDetached?: boolean;
-  updatePositionStrategy?: 'optimized' | 'always' | 'never';
+  updatePositionStrategy?: 'optimized' | 'always' | 'freezeReference';
   onPlaced?: () => void;
 }
 
@@ -152,6 +152,15 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
     } = props;
 
     const context = usePopperContext(CONTENT_NAME, __scopePopper);
+
+    // const [capturedBoundingClientReactOfReferenceWhenLastOpened, setCapturedBoundingClientReactOfReferenceWhenLastOpened] = useState<DOMRect | null>(null);
+    // const capturedBoundingClientReactOfReferenceWhenLastOpenedRef = React.useRef(capturedBoundingClientReactOfReferenceWhenLastOpened);
+    // capturedBoundingClientReactOfReferenceWhenLastOpenedRef.current = capturedBoundingClientReactOfReferenceWhenLastOpened;
+    //
+    // const virtualReference = useMemo(() => {
+    //   if (capturedBoundingClientReactOfReferenceWhenLastOpened === null) return null;
+    //   return { getBoundingClientRect: () => capturedBoundingClientReactOfReferenceWhenLastOpened };
+    // }, [capturedBoundingClientReactOfReferenceWhenLastOpened]);
 
     const [content, setContent] = React.useState<HTMLDivElement | null>(null);
     const composedRefs = useComposedRefs(forwardedRef, (node) => setContent(node));
@@ -184,12 +193,17 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
       placement: desiredPlacement,
       whileElementsMounted: useCallback<Exclude<UseFloatingOptions['whileElementsMounted'], undefined>>(
         (...args) => {
-          if (updatePositionStrategy === 'never') {
-            return () => {
-              // never updating anything, so no cleanup needed
-            };
-          }
-
+          // if (updatePositionStrategy === 'freezeReference') {
+          //   if (capturedBoundingClientReactOfReferenceWhenLastOpenedRef.current === null) {
+          //     return () => {};
+          //   } else {
+          //     return () => {
+          //       setTimeout(() => {
+          //         setCapturedBoundingClientReactOfReferenceWhenLastOpened(null);
+          //       }, 500); // TODO replace hacky timeout with a better solution - would have to know when the popper is fully closed
+          //     };
+          //   }
+          // }
           const cleanup = autoUpdate(...args, {
             animationFrame: updatePositionStrategy === 'always',
           });
@@ -232,9 +246,20 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
     const handlePlaced = useCallbackRef(onPlaced);
     useLayoutEffect(() => {
       if (isPositioned) {
+        if (updatePositionStrategy === 'freezeReference') {
+          const rect = context.anchor?.getBoundingClientRect();
+          if (rect) {
+            refs.setReference({
+              getBoundingClientRect(): DOMRect {
+                return rect;
+              },
+            });
+          }
+        }
+
         handlePlaced?.();
       }
-    }, [isPositioned, handlePlaced]);
+    }, [isPositioned, handlePlaced, updatePositionStrategy, content, context.anchor]);
 
     const arrowX = middlewareData.arrow?.x;
     const arrowY = middlewareData.arrow?.y;
