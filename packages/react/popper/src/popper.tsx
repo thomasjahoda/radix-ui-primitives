@@ -9,6 +9,7 @@ import {
   arrow as floatingUIarrow,
   flip,
   size,
+  UseFloatingOptions,
 } from '@floating-ui/react-dom';
 import * as ArrowPrimitive from '@radix-ui/react-arrow';
 import { useComposedRefs } from '@radix-ui/react-compose-refs';
@@ -21,6 +22,7 @@ import { useSize } from '@radix-ui/react-use-size';
 import type { Placement, Middleware } from '@floating-ui/react-dom';
 import type { Scope } from '@radix-ui/react-context';
 import type { Measurable } from '@radix-ui/rect';
+import { useCallback } from 'react';
 
 const SIDE_OPTIONS = ['top', 'right', 'bottom', 'left'] as const;
 const ALIGN_OPTIONS = ['start', 'center', 'end'] as const;
@@ -126,7 +128,7 @@ interface PopperContentProps extends PrimitiveDivProps {
   collisionPadding?: number | Partial<Record<Side, number>>;
   sticky?: 'partial' | 'always';
   hideWhenDetached?: boolean;
-  updatePositionStrategy?: 'optimized' | 'always';
+  updatePositionStrategy?: 'optimized' | 'always' | 'never';
   onPlaced?: () => void;
 }
 
@@ -180,12 +182,21 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
       // default to `fixed` strategy so users don't have to pick and we also avoid focus scroll issues
       strategy: 'fixed',
       placement: desiredPlacement,
-      whileElementsMounted: (...args) => {
-        const cleanup = autoUpdate(...args, {
-          animationFrame: updatePositionStrategy === 'always',
-        });
-        return cleanup;
-      },
+      whileElementsMounted: useCallback<Exclude<UseFloatingOptions['whileElementsMounted'], undefined>>(
+        (...args) => {
+          if (updatePositionStrategy === 'never') {
+            return () => {
+              // never updating anything, so no cleanup needed
+            };
+          }
+
+          const cleanup = autoUpdate(...args, {
+            animationFrame: updatePositionStrategy === 'always',
+          });
+          return cleanup;
+        },
+        [updatePositionStrategy],
+      ),
       elements: {
         reference: context.anchor,
       },
