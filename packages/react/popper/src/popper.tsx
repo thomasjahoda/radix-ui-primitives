@@ -22,7 +22,7 @@ import { useSize } from '@radix-ui/react-use-size';
 import type { Placement, Middleware } from '@floating-ui/react-dom';
 import type { Scope } from '@radix-ui/react-context';
 import type { Measurable } from '@radix-ui/rect';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 const SIDE_OPTIONS = ['top', 'right', 'bottom', 'left'] as const;
 const ALIGN_OPTIONS = ['start', 'center', 'end'] as const;
@@ -84,10 +84,13 @@ const PopperAnchor = React.forwardRef<PopperAnchorElement, PopperAnchorProps>(
       const previousAnchor = anchorRef.current;
       anchorRef.current = virtualRef?.current || ref.current;
       if (previousAnchor !== anchorRef.current) {
-        // Consumer can anchor the popper to something that isn't
-        // a DOM node e.g. pointer position, so we override the
-        // `anchorRef` with their virtual ref in this case.
-        context.onAnchorChange(anchorRef.current);
+        const timeout = setTimeout(() => {
+          // Consumer can anchor the popper to something that isn't
+          // a DOM node e.g. pointer position, so we override the
+          // `anchorRef` with their virtual ref in this case.
+          context.onAnchorChange(anchorRef.current);
+        }, 1);
+        return () => clearTimeout(timeout);
       }
     });
 
@@ -148,7 +151,7 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
       hideWhenDetached = false,
       updatePositionStrategy = 'optimized',
       onPlaced,
-      ...contentProps
+      ...contentProps // TODO [performance] useShallowEqualMemoValue on contentProps
     } = props;
 
     const context = usePopperContext(CONTENT_NAME, __scopePopper);
@@ -178,23 +181,8 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
       altBoundary: hasExplicitBoundaries,
     };
 
-    const { refs, floatingStyles, placement, isPositioned, middlewareData } = useFloating({
-      // default to `fixed` strategy so users don't have to pick and we also avoid focus scroll issues
-      strategy: 'fixed',
-      placement: desiredPlacement,
-      whileElementsMounted: useCallback<Exclude<UseFloatingOptions['whileElementsMounted'], undefined>>(
-        (...args) => {
-          const cleanup = autoUpdate(...args, {
-            animationFrame: updatePositionStrategy === 'always',
-          });
-          return cleanup;
-        },
-        [updatePositionStrategy],
-      ),
-      elements: {
-        reference: context.anchor,
-      },
-      middleware: [
+    const middlewares = useMemo(
+      (): Array<Middleware | null | undefined | false> => [
         offset({ mainAxis: sideOffset + arrowHeight, alignmentAxis: alignOffset }),
         avoidCollisions &&
           shift({
@@ -219,6 +207,38 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
         transformOrigin({ arrowWidth, arrowHeight }),
         hideWhenDetached && hide({ strategy: 'referenceHidden', ...detectOverflowOptions }),
       ],
+      [
+        alignOffset,
+        arrow,
+        arrowHeight,
+        arrowPadding,
+        arrowWidth,
+        avoidCollisions,
+        detectOverflowOptions,
+        hideWhenDetached,
+        sideOffset,
+        sticky,
+      ]
+    );
+    const { refs, floatingStyles, placement, isPositioned, middlewareData } = useFloating({
+      // default to `fixed` strategy so users don't have to pick and we also avoid focus scroll issues
+      strategy: 'fixed',
+      placement: desiredPlacement,
+      whileElementsMounted: useCallback<
+        Exclude<UseFloatingOptions['whileElementsMounted'], undefined>
+      >(
+        (...args) => {
+          const cleanup = autoUpdate(...args, {
+            animationFrame: updatePositionStrategy === 'always',
+          });
+          return cleanup;
+        },
+        [updatePositionStrategy]
+      ),
+      elements: {
+        reference: context.anchor,
+      },
+      middleware: middlewares,
     });
 
     const [placedSide, placedAlign] = getSideAndAlignFromPlacement(placement);
@@ -247,37 +267,29 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
     const cannotCenterArrow = middlewareData.arrow?.centerOffset !== 0;
 
     const [contentZIndex, setContentZIndex] = React.useState<string>();
-    useLayoutEffect(() => {
-      if (content) setContentZIndex(window.getComputedStyle(content).zIndex);
+    useEffect(() => {
+      if (!content) {
+        return undefined;
+      }
+      // TODO use some window.sharedOnEndOfNextRender util or something if available and set that
+      const timeout = setTimeout(() => {
+        setContentZIndex(window.getComputedStyle(content).zIndex);
+      }, 1);
+      return () => clearTimeout(timeout);
     }, [content]);
 
-    return (
-      <div
-        ref={refs.setFloating}
-        data-radix-popper-content-wrapper=""
-        style={{
-          ...floatingStyles,
-          transform: isPositioned ? floatingStyles.transform : 'translate(0, -200%)', // keep off the page when measuring
-          minWidth: 'max-content',
-          zIndex: contentZIndex,
-          ['--radix-popper-transform-origin' as any]: [
-            middlewareData.transformOrigin?.x,
-            middlewareData.transformOrigin?.y,
-          ].join(' '),
-
-          // hide the content if using the hide middleware and should be hidden
-          // set visibility to hidden and disable pointer events so the UI behaves
-          // as if the PopperContent isn't there at all
-          ...(middlewareData.hide?.referenceHidden && {
-            visibility: 'hidden',
-            pointerEvents: 'none',
-          }),
-        }}
-        // Floating UI interally calculates logical alignment based the `dir` attribute on
-        // the reference/floating node, we must add this attribute here to ensure
-        // this is calculated when portalled as well as inline.
-        dir={props.dir}
-      >
+    const contentStyle = useMemo(
+      () => ({
+        ...contentProps.style,
+        // if the PopperContent hasn't been placed yet (not all measurements done)
+        // we prevent animations so that users's animation don't kick in too early referring wrong sides
+        animation: !isPositioned ? 'none' : undefined,
+      }),
+      [contentProps.style, isPositioned]
+    );
+    const popperContentProvider = useMemo(
+      // TODO [performance] useMemo does not do anything due to contentProps
+      () => (
         <PopperContentProvider
           scope={__scopePopper}
           placedSide={placedSide}
@@ -291,14 +303,60 @@ const PopperContent = React.forwardRef<PopperContentElement, PopperContentProps>
             data-align={placedAlign}
             {...contentProps}
             ref={composedRefs}
-            style={{
-              ...contentProps.style,
-              // if the PopperContent hasn't been placed yet (not all measurements done)
-              // we prevent animations so that users's animation don't kick in too early referring wrong sides
-              animation: !isPositioned ? 'none' : undefined,
-            }}
+            style={contentStyle}
           />
         </PopperContentProvider>
+      ),
+      [
+        __scopePopper,
+        arrowX,
+        arrowY,
+        cannotCenterArrow,
+        composedRefs,
+        contentProps,
+        contentStyle,
+        placedAlign,
+        placedSide,
+      ]
+    );
+    return (
+      <div
+        ref={refs.setFloating}
+        data-radix-popper-content-wrapper=""
+        style={useMemo(
+          () => ({
+            ...floatingStyles,
+            transform: isPositioned ? floatingStyles.transform : 'translate(0, -200%)', // keep off the page when measuring
+            minWidth: 'max-content',
+            zIndex: contentZIndex,
+            ['--radix-popper-transform-origin' as any]: [
+              middlewareData.transformOrigin?.x,
+              middlewareData.transformOrigin?.y,
+            ].join(' '),
+
+            // hide the content if using the hide middleware and should be hidden
+            // set visibility to hidden and disable pointer events so the UI behaves
+            // as if the PopperContent isn't there at all
+            ...(middlewareData.hide?.referenceHidden && {
+              visibility: 'hidden',
+              pointerEvents: 'none',
+            }),
+          }),
+          [
+            contentZIndex,
+            floatingStyles,
+            isPositioned,
+            middlewareData.hide?.referenceHidden,
+            middlewareData.transformOrigin?.x,
+            middlewareData.transformOrigin?.y,
+          ]
+        )}
+        // Floating UI interally calculates logical alignment based the `dir` attribute on
+        // the reference/floating node, we must add this attribute here to ensure
+        // this is calculated when portalled as well as inline.
+        dir={props.dir}
+      >
+        {popperContentProvider}
       </div>
     );
   }

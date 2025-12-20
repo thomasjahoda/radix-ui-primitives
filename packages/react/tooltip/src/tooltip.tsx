@@ -14,6 +14,7 @@ import { useControllableState } from '@radix-ui/react-use-controllable-state';
 import * as VisuallyHiddenPrimitive from '@radix-ui/react-visually-hidden';
 
 import type { Scope } from '@radix-ui/react-context';
+import { useMemo } from 'react';
 
 type ScopedProps<P = {}> = P & { __scopeTooltip?: Scope };
 const [createTooltipContext, createTooltipScope] = createContextScope('Tooltip', [
@@ -77,7 +78,13 @@ const TooltipProvider: React.FC<TooltipProviderProps> = (
 
   React.useEffect(() => {
     const skipDelayTimer = skipDelayTimerRef.current;
-    return () => window.clearTimeout(skipDelayTimer);
+    if (skipDelayTimer !== 0) {
+      return () => {
+        window.clearTimeout(skipDelayTimer);
+      };
+    } else {
+      return undefined;
+    }
   }, []);
 
   return (
@@ -289,32 +296,50 @@ const TooltipTrigger = React.forwardRef<TooltipTriggerElement, TooltipTriggerPro
           data-state={context.stateAttribute}
           {...triggerProps}
           ref={composedRefs}
-          onPointerMove={composeEventHandlers(props.onPointerMove, (event) => {
-            if (event.pointerType === 'touch') return;
-            if (
-              !hasPointerMoveOpenedRef.current &&
-              !providerContext.isPointerInTransitRef.current
-            ) {
-              context.onTriggerEnter();
-              hasPointerMoveOpenedRef.current = true;
-            }
-          })}
-          onPointerLeave={composeEventHandlers(props.onPointerLeave, () => {
-            context.onTriggerLeave();
-            hasPointerMoveOpenedRef.current = false;
-          })}
-          onPointerDown={composeEventHandlers(props.onPointerDown, () => {
-            if (context.open) {
-              context.onClose();
-            }
-            isPointerDownRef.current = true;
-            document.addEventListener('pointerup', handlePointerUp, { once: true });
-          })}
-          onFocus={composeEventHandlers(props.onFocus, () => {
-            if (!isPointerDownRef.current) context.onOpen();
-          })}
-          onBlur={composeEventHandlers(props.onBlur, context.onClose)}
-          onClick={composeEventHandlers(props.onClick, context.onClose)}
+          onPointerMove={useMemo(
+            () => (composeEventHandlers(props.onPointerMove, (event) => {
+              if (event.pointerType === 'touch') return;
+              if (
+                !hasPointerMoveOpenedRef.current &&
+                !providerContext.isPointerInTransitRef.current
+              ) {
+                context.onTriggerEnter();
+                hasPointerMoveOpenedRef.current = true;
+              }
+            })),
+            [context, props.onPointerMove, providerContext.isPointerInTransitRef],
+          )}
+          onPointerLeave={useMemo(
+            () => (composeEventHandlers(props.onPointerLeave, () => {
+              context.onTriggerLeave();
+              hasPointerMoveOpenedRef.current = false;
+            })),
+            [context, props.onPointerLeave],
+          )}
+          onPointerDown={useMemo(
+            () => (composeEventHandlers(props.onPointerDown, () => {
+              if (context.open) {
+                context.onClose();
+              }
+              isPointerDownRef.current = true;
+              document.addEventListener('pointerup', handlePointerUp, { once: true });
+            })),
+            [context, handlePointerUp, props.onPointerDown],
+          )}
+          onFocus={useMemo(
+            () => (composeEventHandlers(props.onFocus, () => {
+              if (!isPointerDownRef.current) context.onOpen();
+            })),
+            [context, props.onFocus],
+          )}
+          onBlur={useMemo(
+            () => (composeEventHandlers(props.onBlur, context.onClose)),
+            [context.onClose, props.onBlur],
+          )}
+          onClick={useMemo(
+            () => (composeEventHandlers(props.onClick, context.onClose)),
+            [context.onClose, props.onClick],
+          )}
         />
       </PopperPrimitive.Anchor>
     );
