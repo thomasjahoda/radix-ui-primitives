@@ -27,10 +27,8 @@ type ItemMap<ItemElement extends HTMLElement, ItemData extends BaseItemData> = O
   ItemDataWithElement<ItemData, ItemElement>
 >;
 
-function createCollection<
-  ItemElement extends HTMLElement,
-  ItemData extends BaseItemData = BaseItemData,
->(name: string) {
+function createCollection<ItemElement extends HTMLElement, ItemData extends {} = {}>(name: string) {
+  type AllItemData = ItemData & BaseItemData;
   /* -----------------------------------------------------------------------------------------------
    * CollectionProvider
    * ---------------------------------------------------------------------------------------------*/
@@ -38,13 +36,13 @@ function createCollection<
   const PROVIDER_NAME = name + 'CollectionProvider';
   const [createCollectionContext, createCollectionScope] = createContextScope(PROVIDER_NAME);
 
-  type ContextValue = {
+  interface ContextValue {
     collectionElement: CollectionElement | null;
     collectionRef: React.Ref<CollectionElement | null>;
     collectionRefObject: React.RefObject<CollectionElement | null>;
-    itemMap: ItemMap<ItemElement, ItemData>;
-    setItemMap: React.Dispatch<React.SetStateAction<ItemMap<ItemElement, ItemData>>>;
-  };
+    itemMap: ItemMap<ItemElement, AllItemData>;
+    setItemMap: React.Dispatch<React.SetStateAction<ItemMap<ItemElement, AllItemData>>>;
+  }
 
   const [CollectionContextProvider, useCollectionContext] = createCollectionContext<ContextValue>(
     PROVIDER_NAME,
@@ -54,12 +52,12 @@ function createCollection<
       collectionRefObject: { current: null },
       itemMap: new OrderedDict(),
       setItemMap: () => void 0,
-    }
+    },
   );
 
   type CollectionState = [
-    ItemMap: ItemMap<ItemElement, ItemData>,
-    SetItemMap: React.Dispatch<React.SetStateAction<ItemMap<ItemElement, ItemData>>>,
+    ItemMap: ItemMap<ItemElement, AllItemData>,
+    SetItemMap: React.Dispatch<React.SetStateAction<ItemMap<ItemElement, AllItemData>>>,
   ];
 
   const CollectionProvider: React.FC<{
@@ -92,7 +90,7 @@ function createCollection<
     const { scope, children, state } = props;
     const ref = React.useRef<CollectionElement>(null);
     const [collectionElement, setCollectionElement] = React.useState<CollectionElement | null>(
-      null
+      null,
     );
     const composeRefs = useComposedRefs(ref, setCollectionElement);
     const [itemMap, setItemMap] = state;
@@ -157,7 +155,7 @@ function createCollection<
       const context = useCollectionContext(COLLECTION_SLOT_NAME, scope);
       const composedRefs = useComposedRefs(forwardedRef, context.collectionRef);
       return <CollectionSlotImpl ref={composedRefs}>{children}</CollectionSlotImpl>;
-    }
+    },
   );
 
   CollectionSlot.displayName = COLLECTION_SLOT_NAME;
@@ -169,7 +167,7 @@ function createCollection<
   const ITEM_SLOT_NAME = name + 'CollectionItemSlot';
   const ITEM_DATA_ATTR = 'data-radix-collection-item';
 
-  type CollectionItemSlotProps = ItemData & {
+  type CollectionItemSlotProps = AllItemData & {
     children: React.ReactNode;
     scope: any;
   };
@@ -199,12 +197,12 @@ function createCollection<
           }
 
           if (!map.has(element)) {
-            map.set(element, { ...(itemData as unknown as ItemData), element });
+            map.set(element, { ...(itemData as unknown as AllItemData), element });
             return map.toSorted(sortByDocumentPosition);
           }
 
           return map
-            .set(element, { ...(itemData as unknown as ItemData), element })
+            .set(element, { ...(itemData as unknown as AllItemData), element })
             .toSorted(sortByDocumentPosition);
         });
 
@@ -224,7 +222,7 @@ function createCollection<
           {children}
         </CollectionItemSlotImpl>
       );
-    }
+    },
   );
 
   CollectionItemSlot.displayName = ITEM_SLOT_NAME;
@@ -234,7 +232,7 @@ function createCollection<
    * ---------------------------------------------------------------------------------------------*/
 
   function useInitCollection() {
-    return React.useState<ItemMap<ItemElement, ItemData>>(new OrderedDict());
+    return React.useState<ItemMap<ItemElement, AllItemData>>(new OrderedDict());
   }
 
   /* -----------------------------------------------------------------------------------------------
@@ -282,7 +280,7 @@ function isElementPreceding(a: Element, b: Element) {
 
 function sortByDocumentPosition<E extends HTMLElement, T extends BaseItemData>(
   a: EntryOf<ItemMap<E, T>>,
-  b: EntryOf<ItemMap<E, T>>
+  b: EntryOf<ItemMap<E, T>>,
 ) {
   return !a[1].element || !b[1].element
     ? 0

@@ -6,13 +6,10 @@ const config: StorybookConfig = {
     '../stories/**/*.mdx',
     '../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
-  addons: [
-    //
-    '@storybook/addon-essentials',
-    '@storybook/addon-storysource',
-    '@storybook/addon-webpack5-compiler-swc',
-    // '@chromatic-com/storybook',
-  ],
+  features: {
+    experimentalRSC: true,
+  },
+  addons: ['@storybook/addon-webpack5-compiler-swc', '@storybook/addon-docs'],
   framework: {
     name: '@storybook/react-webpack5',
     options: {
