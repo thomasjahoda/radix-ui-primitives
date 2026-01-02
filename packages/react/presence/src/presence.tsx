@@ -50,8 +50,12 @@ function usePresence(present: boolean) {
   });
 
   React.useEffect(() => {
-    const currentAnimationName = getAnimationName(stylesRef.current);
-    prevAnimationNameRef.current = state === 'mounted' ? currentAnimationName : 'none';
+    // only read animationName after the full task has run, so we don't cause forced reflow due to accessing the styles
+    const timeout = setTimeout(() => {
+      prevAnimationNameRef.current =
+        state === 'mounted' ? getAnimationName(stylesRef.current) : 'none';
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [state]);
 
   useLayoutEffect(() => {
