@@ -182,7 +182,7 @@ const DialogOverlay = React.forwardRef<DialogOverlayElement, DialogOverlayProps>
     const portalContext = usePortalContext(OVERLAY_NAME, props.__scopeDialog);
     const { forceMount = portalContext.forceMount, ...overlayProps } = props;
     const context = useDialogContext(OVERLAY_NAME, props.__scopeDialog);
-    console.log(`DialogOverlay forceMount=${forceMount}`);
+    // console.log(`DialogOverlay forceMount=${forceMount}`);
     return context.modal ? (
       <Presence present={forceMount || context.open}>
         <DialogOverlayImpl {...overlayProps} ref={forwardedRef} />

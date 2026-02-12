@@ -77,7 +77,7 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
       this.paused = false;
     },
   }).current;
-  console.log(`FocusScope hidden=${hidden} trapped=${trapped} paused=${focusScope.paused}`);
+  // console.log(`FocusScope hidden=${hidden} trapped=${trapped} paused=${focusScope.paused}`);
 
   useEffect(() => {
     if (hidden) {
@@ -150,7 +150,7 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
 
   React.useEffect(() => {
     if (!hidden && container) {
-      console.log(`FocusScope adding to stack`);
+      // console.log(`FocusScope adding to stack`);
       focusScopesStack.add(focusScope);
       const previouslyFocusedElement = document.activeElement as HTMLElement | null;
       const hasFocusedCandidate = container.contains(previouslyFocusedElement);
