@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useComposedRefs } from '@radix-ui/react-compose-refs';
 import { Primitive } from '@radix-ui/react-primitive';
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref';
+import { useEffect } from 'react';
 
 const AUTOFOCUS_ON_MOUNT = 'focusScope.autoFocusOnMount';
 const AUTOFOCUS_ON_UNMOUNT = 'focusScope.autoFocusOnUnmount';
@@ -33,13 +34,20 @@ interface FocusScopeProps extends PrimitiveDivProps {
   trapped?: boolean;
 
   /**
-   * Event handler called when auto-focusing on mount.
+   * Use `true` when this element is pre-mounted or kept-mounted for performance, but is hidden or is in the process of being hidden.
+   * ("in the process of being hidden" = an animation is going on to e.g. fade out the element, but it should already lose its focus)
+   * @defaultValue false
+   */
+  hidden?: boolean;
+
+  /**
+   * Event handler called when auto-focusing on mount (or when hidden switched from true to false).
    * Can be prevented.
    */
   onMountAutoFocus?: (event: Event) => void;
 
   /**
-   * Event handler called when auto-focusing on unmount.
+   * Event handler called when auto-focusing on unmount (or when hidden switched from false to true).
    * Can be prevented.
    */
   onUnmountAutoFocus?: (event: Event) => void;
@@ -49,6 +57,7 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
   const {
     loop = false,
     trapped = false,
+    hidden = false,
     onMountAutoFocus: onMountAutoFocusProp,
     onUnmountAutoFocus: onUnmountAutoFocusProp,
     ...scopeProps
@@ -68,10 +77,20 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
       this.paused = false;
     },
   }).current;
+  console.log(`FocusScope hidden=${hidden} trapped=${trapped} paused=${focusScope.paused}`);
+
+  useEffect(() => {
+    if (hidden) {
+      focusScope.pause();
+    } else {
+      // reset paused when coming back from hidden
+      focusScope.resume();
+    }
+  }, [focusScope, hidden]);
 
   // Takes care of trapping focus if focus is moved outside programmatically for example
   React.useEffect(() => {
-    if (trapped) {
+    if (!hidden && trapped) {
       function handleFocusIn(event: FocusEvent) {
         if (focusScope.paused || !container) return;
         const target = event.target as HTMLElement | null;
@@ -127,10 +146,11 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         mutationObserver.disconnect();
       };
     }
-  }, [trapped, container, focusScope.paused]);
+  }, [hidden, trapped, container, focusScope.paused]);
 
   React.useEffect(() => {
-    if (container) {
+    if (!hidden && container) {
+      console.log(`FocusScope adding to stack`);
       focusScopesStack.add(focusScope);
       const previouslyFocusedElement = document.activeElement as HTMLElement | null;
       const hasFocusedCandidate = container.contains(previouslyFocusedElement);
@@ -167,12 +187,13 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         }, 0);
       };
     }
-  }, [container, onMountAutoFocus, onUnmountAutoFocus, focusScope]);
+  }, [hidden, container, onMountAutoFocus, onUnmountAutoFocus, focusScope]);
 
   // Takes care of looping focus (when tabbing whilst at the edges)
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent) => {
       if (!loop && !trapped) return;
+      if (hidden) return;
       if (focusScope.paused) return;
 
       const isTabKey = event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey;
@@ -197,7 +218,7 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         }
       }
     },
-    [loop, trapped, focusScope.paused],
+    [loop, trapped, hidden, focusScope.paused],
   );
 
   return (

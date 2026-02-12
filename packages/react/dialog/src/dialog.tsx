@@ -171,8 +171,10 @@ interface DialogOverlayProps extends DialogOverlayImplProps {
   /**
    * Used to force mounting when more control is needed. Useful when
    * controlling animation with React animation libraries.
+   *
+   * Can also set to false to override portal context forceMount.
    */
-  forceMount?: true;
+  forceMount?: boolean;
 }
 
 const DialogOverlay = React.forwardRef<DialogOverlayElement, DialogOverlayProps>(
@@ -180,6 +182,7 @@ const DialogOverlay = React.forwardRef<DialogOverlayElement, DialogOverlayProps>
     const portalContext = usePortalContext(OVERLAY_NAME, props.__scopeDialog);
     const { forceMount = portalContext.forceMount, ...overlayProps } = props;
     const context = useDialogContext(OVERLAY_NAME, props.__scopeDialog);
+    console.log(`DialogOverlay forceMount=${forceMount}`);
     return context.modal ? (
       <Presence present={forceMount || context.open}>
         <DialogOverlayImpl {...overlayProps} ref={forwardedRef} />
@@ -264,18 +267,20 @@ const DialogContentModal = React.forwardRef<DialogContentTypeElement, DialogCont
 
     // aria-hide everything except the content (better supported equivalent to setting aria-modal)
     React.useEffect(() => {
+      if (!context.open) return; // if only pre-mounted, don't mark others as hidden
       const content = contentRef.current;
       if (content) return hideOthers(content);
-    }, []);
+    }, [context.open]);
 
     return (
       <DialogContentImpl
         {...props}
         ref={composedRefs}
         // we make sure focus isn't trapped once `DialogContent` has been closed
-        // (closed !== unmounted when animating out)
+        // (closed !== unmounted when animating out or being pre-mounted or kept-mounted via forceMount)
         trapFocus={context.open}
-        disableOutsidePointerEvents
+        hidden={!context.open}
+        disableOutsidePointerEvents={context.open}
         onCloseAutoFocus={composeEventHandlers(props.onCloseAutoFocus, (event) => {
           event.preventDefault();
           context.triggerRef.current?.focus();
@@ -369,6 +374,11 @@ interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'
   trapFocus?: FocusScopeProps['trapped'];
 
   /**
+   * Set to true if the dialog is closed or being closed. Useful for pre-mount or keeping mounted in Portal.
+   */
+  hidden?: FocusScopeProps['hidden'];
+
+  /**
    * Event handler called when auto-focusing on open.
    * Can be prevented.
    */
@@ -398,8 +408,9 @@ const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogConte
           asChild
           loop
           trapped={trapFocus}
-          onMountAutoFocus={onOpenAutoFocus}
-          onUnmountAutoFocus={onCloseAutoFocus}
+          hidden={props.hidden}
+          onMountAutoFocus={onOpenAutoFocus} // the hidden prop above makes this also work on open
+          onUnmountAutoFocus={onCloseAutoFocus} // the hidden prop above makes this also work on close
         >
           <DismissableLayer
             role="dialog"
