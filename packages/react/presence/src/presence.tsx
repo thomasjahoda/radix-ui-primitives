@@ -8,6 +8,11 @@ interface PresenceProps {
   present: boolean;
 }
 
+/**
+ * If the provided present changes to false, keeps the child mounted as long as a CSS-animation is ongoing.
+ * @param props
+ * @constructor
+ */
 const Presence: React.FC<PresenceProps> = (props) => {
   const { present, children } = props;
   const presence = usePresence(present);
@@ -29,7 +34,10 @@ Presence.displayName = 'Presence';
  * usePresence
  * -----------------------------------------------------------------------------------------------*/
 
-function usePresence(present: boolean) {
+function usePresence(present: boolean): {
+  isPresent: boolean;
+  ref: React.RefCallback<HTMLElement>;
+} {
   const [node, setNode] = React.useState<HTMLElement>();
   const stylesRef = React.useRef<CSSStyleDeclaration | null>(null);
   const prevPresentRef = React.useRef(present);
@@ -201,5 +209,6 @@ export {
   Presence,
   //
   Root,
+  usePresence,
 };
 export type { PresenceProps };

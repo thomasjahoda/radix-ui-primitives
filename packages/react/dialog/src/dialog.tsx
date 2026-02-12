@@ -267,9 +267,16 @@ const DialogContentModal = React.forwardRef<DialogContentTypeElement, DialogCont
 
     // aria-hide everything except the content (better supported equivalent to setting aria-modal)
     React.useEffect(() => {
-      if (!context.open) return; // if only pre-mounted, don't mark others as hidden
+      if (!context.open) {
+        // if only pre-mounted, don't mark others as hidden
+        // console.log('DialogContentModal: not using aria-hidden on others because not open');
+        return;
+      }
       const content = contentRef.current;
-      if (content) return hideOthers(content);
+      if (content) {
+        // console.log('DialogContentModal: using aria-hidden on others');
+        return hideOthers(content);
+      }
     }, [context.open]);
 
     return (
@@ -393,7 +400,8 @@ interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'
 
 const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogContentImplProps>(
   (props: ScopedProps<DialogContentImplProps>, forwardedRef) => {
-    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, hidden, ...contentProps } = props;
+    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, hidden, ...contentProps } =
+      props;
     const context = useDialogContext(CONTENT_NAME, __scopeDialog);
     const contentRef = React.useRef<HTMLDivElement>(null);
     const composedRefs = useComposedRefs(forwardedRef, contentRef);

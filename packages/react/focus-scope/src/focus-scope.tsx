@@ -77,13 +77,15 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
       this.paused = false;
     },
   }).current;
-  // console.log(`FocusScope hidden=${hidden} trapped=${trapped} paused=${focusScope.paused}`);
+  // console.log(`FocusScope render: hidden=${hidden} trapped=${trapped} paused=${focusScope.paused}`);
 
   useEffect(() => {
     if (hidden) {
+      // console.log(`FocusScope - pausing due to hidden`);
       focusScope.pause();
     } else {
       // reset paused when coming back from hidden
+      // console.log(`FocusScope - resuming due to not hidden (either initial or from change)`);
       focusScope.resume();
     }
   }, [focusScope, hidden]);
@@ -97,6 +99,10 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         if (container.contains(target)) {
           lastFocusedElementRef.current = target;
         } else {
+          // console.log(
+          //   'FocusScope: handleFocusIn, focusing lastFocusedElement',
+          //   lastFocusedElementRef.current,
+          // );
           focus(lastFocusedElementRef.current, { select: true });
         }
       }
@@ -120,6 +126,10 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         // If the focus has moved to an actual legitimate element (`relatedTarget !== null`)
         // that is outside the container, we move focus to the last valid focused element inside.
         if (!container.contains(relatedTarget)) {
+          // console.log(
+          //   'FocusScope: handleFocusOut, focusing lastFocusedElement',
+          //   lastFocusedElementRef.current,
+          // );
           focus(lastFocusedElementRef.current, { select: true });
         }
       }
@@ -131,7 +141,13 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         const focusedElement = document.activeElement as HTMLElement | null;
         if (focusedElement !== document.body) return;
         for (const mutation of mutations) {
-          if (mutation.removedNodes.length > 0) focus(container);
+          if (mutation.removedNodes.length > 0) {
+            // console.log(
+            //   'FocusScope: handleMutations - will focus something in container',
+            //   container,
+            // );
+            focus(container);
+          }
         }
       }
 
@@ -160,11 +176,26 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
         container.addEventListener(AUTOFOCUS_ON_MOUNT, onMountAutoFocus);
         container.dispatchEvent(mountEvent);
         if (!mountEvent.defaultPrevented) {
-          focusFirst(removeLinks(getTabbableCandidates(container)), { select: true });
+          const candidates = removeLinks(getTabbableCandidates(container));
+          // console.log(
+          //   'FocusScope: mount: will focusFirst of container',
+          //   container,
+          //   'candidates:',
+          //   candidates,
+          // );
+          focusFirst(candidates, { select: true });
           if (document.activeElement === previouslyFocusedElement) {
+            // console.log(
+            //   'FocusScope: mount: trying to focus candidates did not change focused element, so going to try to focus some element in container',
+            // );
             focus(container);
           }
         }
+      } else {
+        // console.log(
+        //   'FocusScope: mount: container contains focused element, so not going to do anything',
+        //   previouslyFocusedElement,
+        // );
       }
 
       return () => {
@@ -178,7 +209,9 @@ const FocusScope = React.forwardRef<FocusScopeElement, FocusScopeProps>((props, 
           container.addEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
           container.dispatchEvent(unmountEvent);
           if (!unmountEvent.defaultPrevented) {
-            focus(previouslyFocusedElement ?? document.body, { select: true });
+            const elementToFocus = previouslyFocusedElement ?? document.body;
+            // console.log('FocusScope: focusing on unmount', elementToFocus);
+            focus(elementToFocus, { select: true });
           }
           // we need to remove the listener after we `dispatchEvent`
           container.removeEventListener(AUTOFOCUS_ON_UNMOUNT, onUnmountAutoFocus);
@@ -239,6 +272,10 @@ FocusScope.displayName = FOCUS_SCOPE_NAME;
 function focusFirst(candidates: HTMLElement[], { select = false } = {}) {
   const previouslyFocusedElement = document.activeElement;
   for (const candidate of candidates) {
+    if (candidate === previouslyFocusedElement) {
+      // console.log('focus-scope: focusFirst ignoring, because candidate already focused', candidate);
+      return; // already focused
+    }
     focus(candidate, { select });
     if (document.activeElement !== previouslyFocusedElement) return;
   }
@@ -313,10 +350,13 @@ function focus(element?: FocusableTarget | null, { select = false } = {}) {
   if (element && element.focus) {
     const previouslyFocusedElement = document.activeElement;
     // NOTE: we prevent scrolling on focus, to minimize jarring transitions for users
+    // console.log('focus-scope: focussing', element);
     element.focus({ preventScroll: true });
     // only select if its not the same element, it supports selection and we need to select
-    if (element !== previouslyFocusedElement && isSelectableInput(element) && select)
+    if (element !== previouslyFocusedElement && isSelectableInput(element) && select) {
+      // console.log('focus-scope: selecting', element);
       element.select();
+    }
   }
 }
 
