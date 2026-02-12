@@ -393,7 +393,7 @@ interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'
 
 const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogContentImplProps>(
   (props: ScopedProps<DialogContentImplProps>, forwardedRef) => {
-    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, ...contentProps } = props;
+    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, hidden, ...contentProps } = props;
     const context = useDialogContext(CONTENT_NAME, __scopeDialog);
     const contentRef = React.useRef<HTMLDivElement>(null);
     const composedRefs = useComposedRefs(forwardedRef, contentRef);
@@ -408,7 +408,7 @@ const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogConte
           asChild
           loop
           trapped={trapFocus}
-          hidden={props.hidden}
+          hidden={hidden}
           onMountAutoFocus={onOpenAutoFocus} // the hidden prop above makes this also work on open
           onUnmountAutoFocus={onCloseAutoFocus} // the hidden prop above makes this also work on close
         >
