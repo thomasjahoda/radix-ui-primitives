@@ -167,7 +167,7 @@ DialogPortal.displayName = PORTAL_NAME;
 const OVERLAY_NAME = 'DialogOverlay';
 
 type DialogOverlayElement = DialogOverlayImplElement;
-interface DialogOverlayProps extends DialogOverlayImplProps {
+type DialogOverlayProps = Omit<DialogOverlayImplProps, 'removeScroll'> & {
   /**
    * Used to force mounting when more control is needed. Useful when
    * controlling animation with React animation libraries.
@@ -175,7 +175,7 @@ interface DialogOverlayProps extends DialogOverlayImplProps {
    * Can also set to false to override portal context forceMount.
    */
   forceMount?: boolean;
-}
+};
 
 const DialogOverlay = React.forwardRef<DialogOverlayElement, DialogOverlayProps>(
   (props: ScopedProps<DialogOverlayProps>, forwardedRef) => {
@@ -185,7 +185,7 @@ const DialogOverlay = React.forwardRef<DialogOverlayElement, DialogOverlayProps>
     // console.log(`DialogOverlay forceMount=${forceMount}`);
     return context.modal ? (
       <Presence present={forceMount || context.open}>
-        <DialogOverlayImpl {...overlayProps} ref={forwardedRef} />
+        <DialogOverlayImpl removeScroll={context.open} {...overlayProps} ref={forwardedRef} />
       </Presence>
     ) : null;
   },
@@ -195,18 +195,29 @@ DialogOverlay.displayName = OVERLAY_NAME;
 
 type DialogOverlayImplElement = React.ComponentRef<typeof Primitive.div>;
 type PrimitiveDivProps = React.ComponentPropsWithoutRef<typeof Primitive.div>;
-interface DialogOverlayImplProps extends PrimitiveDivProps {}
+interface DialogOverlayImplProps extends PrimitiveDivProps {
+  /**
+   * Whether to remove scroll. Only set to false if pre-mounting or keep-mounting some dialog.
+   * @default true
+   */
+  removeScroll?: boolean;
+}
 
 const Slot = createSlot('DialogOverlay.RemoveScroll');
 
 const DialogOverlayImpl = React.forwardRef<DialogOverlayImplElement, DialogOverlayImplProps>(
   (props: ScopedProps<DialogOverlayImplProps>, forwardedRef) => {
-    const { __scopeDialog, ...overlayProps } = props;
+    const { __scopeDialog, removeScroll = true, ...overlayProps } = props;
     const context = useDialogContext(OVERLAY_NAME, __scopeDialog);
     return (
       // Make sure `Content` is scrollable even when it doesn't live inside `RemoveScroll`
       // ie. when `Overlay` and `Content` are siblings
-      <RemoveScroll as={Slot} allowPinchZoom shards={[context.contentRef]}>
+      <RemoveScroll
+        as={Slot}
+        allowPinchZoom
+        shards={[context.contentRef]}
+        enabled={removeScroll ?? true}
+      >
         <Primitive.div
           data-state={getState(context.open)}
           {...overlayProps}
@@ -286,7 +297,7 @@ const DialogContentModal = React.forwardRef<DialogContentTypeElement, DialogCont
         // we make sure focus isn't trapped once `DialogContent` has been closed
         // (closed !== unmounted when animating out or being pre-mounted or kept-mounted via forceMount)
         trapFocus={context.open}
-        hidden={!context.open}
+        dialogHidden={!context.open}
         disableOutsidePointerEvents={context.open}
         onCloseAutoFocus={composeEventHandlers(props.onCloseAutoFocus, (event) => {
           event.preventDefault();
@@ -383,7 +394,7 @@ interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'
   /**
    * Set to true if the dialog is closed or being closed. Useful for pre-mount or keeping mounted in Portal.
    */
-  hidden?: FocusScopeProps['hidden'];
+  dialogHidden?: FocusScopeProps['hidden'];
 
   /**
    * Event handler called when auto-focusing on open.
@@ -400,8 +411,14 @@ interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'
 
 const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogContentImplProps>(
   (props: ScopedProps<DialogContentImplProps>, forwardedRef) => {
-    const { __scopeDialog, trapFocus, onOpenAutoFocus, onCloseAutoFocus, hidden, ...contentProps } =
-      props;
+    const {
+      __scopeDialog,
+      trapFocus,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      dialogHidden = false,
+      ...contentProps
+    } = props;
     const context = useDialogContext(CONTENT_NAME, __scopeDialog);
     const contentRef = React.useRef<HTMLDivElement>(null);
     const composedRefs = useComposedRefs(forwardedRef, contentRef);
@@ -416,12 +433,13 @@ const DialogContentImpl = React.forwardRef<DialogContentImplElement, DialogConte
           asChild
           loop
           trapped={trapFocus}
-          hidden={hidden}
+          hidden={dialogHidden}
           onMountAutoFocus={onOpenAutoFocus} // the hidden prop above makes this also work on open
           onUnmountAutoFocus={onCloseAutoFocus} // the hidden prop above makes this also work on close
         >
           <DismissableLayer
             role="dialog"
+            enabled={!dialogHidden}
             id={context.contentId}
             aria-describedby={context.descriptionId}
             aria-labelledby={context.titleId}
